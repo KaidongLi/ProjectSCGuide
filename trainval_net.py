@@ -60,9 +60,6 @@ def parse_args():
                       help='number of iterations to display',
                       default=10000, type=int)
 
-  parser.add_argument('--save_dir', dest='save_dir',
-                      help='directory to save models', default="models",
-                      type=str)
   parser.add_argument('--nw', dest='num_workers',
                       help='number of workers to load data',
                       default=0, type=int)
@@ -215,7 +212,7 @@ if __name__ == '__main__':
 
   print('{:d} roidb entries'.format(len(roidb)))
 
-  output_dir = args.save_dir + "/" + args.net + "/" + args.dataset
+  output_dir = args.save_folder + "/" + args.net + "/" + args.dataset
   if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 

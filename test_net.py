@@ -34,6 +34,10 @@ from model.utils.net_utils import save_net, load_net, vis_detections
 from model.faster_rcnn.vgg16 import vgg16
 from model.faster_rcnn.resnet import resnet
 
+
+# import logger
+from common_utils.logging import Logger
+
 try:
     xrange          # Python 2
 except NameError:
@@ -87,7 +91,18 @@ def parse_args():
   parser.add_argument('--vis', dest='vis',
                       help='visualization mode',
                       action='store_true')
+  # save log to file
+  parser.add_argument('--save_folder', default='saved_log/',
+                      help='Directory for saving checkpoint models')
+
+
   args = parser.parse_args()
+
+  # create log save folder
+  if not os.path.exists(args.save_folder):
+    os.mkdir(args.save_folder)
+
+  sys.stdout = Logger(os.path.join(args.save_folder, 'log0.txt'))
   return args
 
 lr = cfg.TRAIN.LEARNING_RATE
