@@ -18,10 +18,15 @@ from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_gri
 
 class _fasterRCNN(nn.Module):
     """ faster RCNN """
-    def __init__(self, classes, class_agnostic):
+    def __init__(self, classes, super_classes, sp_cls_rng, class_agnostic):
         super(_fasterRCNN, self).__init__()
         self.classes = classes
         self.n_classes = len(classes)
+
+        self.sp_classes = super_classes
+        self.n_sp_classes = len(super_classes)
+        self.sp_classes_rng = sp_cls_rng
+
         self.class_agnostic = class_agnostic
         # loss
         self.RCNN_loss_cls = 0
@@ -98,24 +103,48 @@ class _fasterRCNN(nn.Module):
 
         # compute object classification probability
         cls_score = self.RCNN_cls_score(pooled_feat)
-        cls_prob = F.softmax(cls_score, 1)
 
+        sp_cls_score = cls_score[:, :self.n_sp_classes]
+        cls_score = cls_score[:, self.n_sp_classes:]
+
+        cls_prob = 0
+        cls_prob_comb = 0
+        RCNN_loss_sp_cls = 0
         RCNN_loss_cls = 0
         RCNN_loss_bbox = 0
 
+        conv_matrix = self.get_conv_matrix()
+
         if self.training:
+            rois_super_label = conv_matrix[rois_label]
+
+            RCNN_loss_sp_cls = F.cross_entropy(sp_cls_score, rois_super_label)
             # classification loss
             RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
 
             # bounding box regression L1 loss
             RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
 
+            #pdb.set_trace()
+        else:
+            cls_prob = F.softmax(cls_score, 1)
 
-        cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
-        bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+            _, sp_cls_idx = sp_cls_score.max(1)
 
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+            sp_cls_idx = sp_cls_idx.view(-1, 1).expand( cls_score.size() )
+            conv_matrix = conv_matrix.view(1, -1).expand( cls_score.size() )
 
+            cls_score[sp_cls_idx.ne(conv_matrix)] = cls_score.min()
+            cls_prob_comb = F.softmax(cls_score, 1)
+
+
+            cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
+            cls_prob_comb = cls_prob_comb.view(batch_size, rois.size(1), -1)
+            bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+
+        return rois, (cls_prob_comb, cls_prob), bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_sp_cls, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+
+    #def _find
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):
             """
@@ -137,3 +166,11 @@ class _fasterRCNN(nn.Module):
     def create_architecture(self):
         self._init_modules()
         self._init_weights()
+
+
+    def get_conv_matrix(self):
+        conv_matrix = torch.LongTensor(self.n_classes).zero_().cuda()
+        for sp_cls in range(self.n_sp_classes):
+            conv_matrix[self.sp_classes_rng[sp_cls]:self.sp_classes_rng[sp_cls+1]] = sp_cls
+        return conv_matrix
+

@@ -142,4 +142,6 @@ def combined_roidb(imdb_names, training=True):
 
   ratio_list, ratio_index = rank_roidb_ratio(roidb)
 
+  # ratio_list:   sorted ratio
+  # ratio_index:  index to sort by ratio
   return imdb, roidb, ratio_list, ratio_index

@@ -17,13 +17,13 @@ from model.faster_rcnn.faster_rcnn import _fasterRCNN
 import pdb
 
 class vgg16(_fasterRCNN):
-  def __init__(self, classes, pretrained=False, class_agnostic=False):
+  def __init__(self, classes, super_classes, sp_cls_rng, pretrained=False, class_agnostic=False):
     self.model_path = 'data/pretrained_model/vgg16_caffe.pth'
     self.dout_base_model = 512
     self.pretrained = pretrained
     self.class_agnostic = class_agnostic
 
-    _fasterRCNN.__init__(self, classes, class_agnostic)
+    _fasterRCNN.__init__(self, classes, super_classes, sp_cls_rng, class_agnostic)
 
   def _init_modules(self):
     vgg = models.vgg16()
@@ -46,7 +46,7 @@ class vgg16(_fasterRCNN):
     self.RCNN_top = vgg.classifier
 
     # not using the last maxpool layer
-    self.RCNN_cls_score = nn.Linear(4096, self.n_classes)
+    self.RCNN_cls_score = nn.Linear(4096, self.n_sp_classes + self.n_classes)
 
     if self.class_agnostic:
       self.RCNN_bbox_pred = nn.Linear(4096, 4)

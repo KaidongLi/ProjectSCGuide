@@ -45,12 +45,21 @@ class pascal_voc(imdb):
         self._devkit_path = self._get_default_path() if devkit_path is None \
             else devkit_path
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
+
+        # self._classes = ('__background__',  # always index 0
+        #                  'aeroplane', 'bicycle', 'bird', 'boat',
+        #                  'bottle', 'bus', 'car', 'cat', 'chair',
+        #                  'cow', 'diningtable', 'dog', 'horse',
+        #                  'motorbike', 'person', 'pottedplant',
+        #                  'sheep', 'sofa', 'train', 'tvmonitor')
         self._classes = ('__background__',  # always index 0
-                         'aeroplane', 'bicycle', 'bird', 'boat',
-                         'bottle', 'bus', 'car', 'cat', 'chair',
-                         'cow', 'diningtable', 'dog', 'horse',
-                         'motorbike', 'person', 'pottedplant',
-                         'sheep', 'sofa', 'train', 'tvmonitor')
+                         'person', 
+                         'bird', 'cat', 'cow', 'dog', 'horse', 'sheep',
+                         'aeroplane', 'bicycle', 'boat', 'bus', 'car', 'motorbike', 'train', 
+                         'bottle', 'chair', 'diningtable', 'pottedplant', 'sofa', 'tvmonitor')
+        self._sp_classes = ('__background__', 'person', 'animal', 'vehicle', 'indoor')
+        self._sp_cls_range = [0, 1, 2, 8, 15, 21]
+
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()

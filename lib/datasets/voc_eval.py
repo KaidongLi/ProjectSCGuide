@@ -101,7 +101,7 @@ def voc_eval(detpath,
   # first load gt
   if not os.path.isdir(cachedir):
     os.mkdir(cachedir)
-  cachefile = os.path.join(cachedir, '%s_annots.pkl' % imagesetfile)
+  cachefile = os.path.join(cachedir, 'annots.pkl')
   # read list of images
   with open(imagesetfile, 'r') as f:
     lines = f.readlines()
@@ -160,7 +160,7 @@ def voc_eval(detpath,
     sorted_scores = np.sort(-confidence)
     BB = BB[sorted_ind, :]
     image_ids = [image_ids[x] for x in sorted_ind]
-
+    
     # go down dets and mark TPs and FPs
     for d in range(nd):
       R = class_recs[image_ids[d]]

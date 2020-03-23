@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
   # initilize the network here.
   if args.net == 'vgg16':
-    fasterRCNN = vgg16(imdb.classes, pretrained=True, class_agnostic=args.class_agnostic)
+    fasterRCNN = vgg16(imdb.classes, imdb.super_classes, imdb.super_classes_range, pretrained=True, class_agnostic=args.class_agnostic)
   elif args.net == 'res101':
     fasterRCNN = resnet(imdb.classes, 101, pretrained=True, class_agnostic=args.class_agnostic)
   elif args.net == 'res50':
@@ -320,6 +320,9 @@ if __name__ == '__main__':
 
     data_iter = iter(dataloader)
     for step in range(iters_per_epoch):
+
+      #pdb.set_trace()
+      
       data = next(data_iter)
       im_data.data.resize_(data[0].size()).copy_(data[0])
       im_info.data.resize_(data[1].size()).copy_(data[1])
@@ -329,11 +332,11 @@ if __name__ == '__main__':
       fasterRCNN.zero_grad()
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
-      RCNN_loss_cls, RCNN_loss_bbox, \
+      RCNN_loss_sp_cls, RCNN_loss_cls, RCNN_loss_bbox, \
       rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
       loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
-           + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+           + RCNN_loss_sp_cls.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
       loss_temp += loss.item()
 
       # backward

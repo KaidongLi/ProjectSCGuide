@@ -29,6 +29,11 @@ class imdb(object):
       self._classes = []
     else:
       self._classes = classes
+
+    # super class info
+    self._sp_classes = []
+    self._sp_cls_range = []
+
     self._image_index = []
     self._obj_proposer = 'gt'
     self._roidb = None
@@ -47,6 +52,18 @@ class imdb(object):
   @property
   def classes(self):
     return self._classes
+
+  @property
+  def num_super_classes(self):
+    return len(self._sp_classes)
+
+  @property
+  def super_classes(self):
+    return self._sp_classes
+
+  @property
+  def super_classes_range(self):
+    return self._sp_cls_range
 
   @property
   def image_index(self):
