@@ -140,6 +140,10 @@ if __name__ == '__main__':
       args.imdb_name = "vg_150-50-50_minitrain"
       args.imdbval_name = "vg_150-50-50_minival"
       args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
+  elif args.dataset == "kitti":
+      args.imdb_name = "kitti_train"
+      args.imdbval_name = "kitti_val"
+      args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]']
 
   args.cfg_file = "cfgs/{}_ls.yml".format(args.net) if args.large_scale else "cfgs/{}.yml".format(args.net)
 
@@ -240,6 +244,10 @@ if __name__ == '__main__':
 
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
+
+
+  # kaidong test
+  #for i in range(10):
   for i in range(num_images):
 
       data = next(data_iter)
@@ -298,7 +306,7 @@ if __name__ == '__main__':
               cls_boxes = pred_boxes[inds, :]
             else:
               cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
-            
+
             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
             # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
             cls_dets = cls_dets[order]
