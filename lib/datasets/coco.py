@@ -37,6 +37,29 @@ class coco(imdb):
     # load COCO API, classes, class <-> id mappings
     self._COCO = COCO(self._get_ann_file())
     cats = self._COCO.loadCats(self._COCO.getCatIds())
+
+    # self._classes = ('__background__', #0
+    #   'person', #1
+    #   'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', #9
+    #   'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', #14
+    #   'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', #24
+    #   'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', #29
+    #   'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 
+    #   'skateboard', 'surfboard', 'tennis racket', #39
+    #   'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', #46
+    #   'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 
+    #   'hot dog', 'pizza', 'donut', 'cake', #56
+    #   'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', #62
+    #   'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', #68
+    #   'microwave', 'oven', 'toaster', 'sink', 'refrigerator', #73
+    #   'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'#80
+    #   )
+    
+    self._sp_classes = ('__background__', 'person', 'vehicle', 'outdoor', 'animal',
+      'accessory', 'sports', 'kitchen', 'food', 'furniture', 'electronic', 'appliance',
+      'indoor')
+    self._sp_cls_range = [0, 1, 2, 10, 15, 25, 30, 40, 47, 57, 63, 69, 74, 81]
+
     self._classes = tuple(['__background__'] + [c['name'] for c in cats])
     self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
     self._class_to_coco_cat_id = dict(list(zip([c['name'] for c in cats],

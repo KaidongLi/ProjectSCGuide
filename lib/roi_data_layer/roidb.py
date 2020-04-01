@@ -133,7 +133,7 @@ def combined_roidb(imdb_names, training=True):
     for r in roidbs[1:]:
       roidb.extend(r)
     tmp = get_imdb(imdb_names.split('+')[1])
-    imdb = datasets.imdb.imdb(imdb_names, tmp.classes)
+    imdb = datasets.imdb.imdb(imdb_names, tmp.classes, tmp.super_classes, tmp.super_classes_range)
   else:
     imdb = get_imdb(imdb_names)
 
