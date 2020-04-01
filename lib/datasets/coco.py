@@ -267,6 +267,7 @@ class coco(imdb):
   def _coco_results_one_category(self, boxes, cat_id):
     results = []
     for im_ind, index in enumerate(self.image_index):
+      #import pdb; pdb.set_trace()
       dets = boxes[im_ind].astype(np.float)
       if dets == []:
         continue
