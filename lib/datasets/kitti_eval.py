@@ -1,7 +1,7 @@
 import io as sysio
 import time
 
-#import numba
+import numba
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -15,7 +15,7 @@ def get_mAP(prec):
     return sums / 11 * 100
 
 
-#@numba.jit
+@numba.jit
 def get_thresholds(scores: np.ndarray, num_gt, num_sample_pts=41):
     scores.sort()
     scores = scores[::-1]
@@ -95,7 +95,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
     return num_valid_gt, ignored_gt, ignored_dt, dc_bboxes
 
 
-#@numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def image_box_overlap(boxes, query_boxes, criterion=-1):
     N = boxes.shape[0]
     K = query_boxes.shape[0]
@@ -180,7 +180,7 @@ def image_box_overlap(boxes, query_boxes, criterion=-1):
 #     return rinc
 
 
-#@numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def compute_statistics_jit(overlaps,
                            gt_datas,
                            dt_datas,
@@ -263,8 +263,8 @@ def compute_statistics_jit(overlaps,
             thresh_idx += 1
             if compute_aos:
                 # delta.append(gt_alphas[i] - dt_alphas[det_idx])
-                delta[delta_idx] = gt_alphas[i] - dt_alphas[det_idx]
-                delta_idx += 1
+                # delta[delta_idx] = gt_alphas[i] - dt_alphas[det_idx]
+                # delta_idx += 1
 
             assigned_detection[det_idx] = True
     if compute_fp:
@@ -311,7 +311,7 @@ def get_split_parts(num, num_part):
         return [same_part] * num_part + [remain_num]
 
 
-#@numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def fused_compute_statistics(overlaps,
                              pr,
                              gt_nums,
@@ -376,7 +376,7 @@ def calculate_iou_partly(gt_annos,
         num_parts: int. a parameter for fast calculate algorithm
         z_axis: height axis. kitti camera use 1, lidar use 2.
     """
-    #assert len(gt_annos) == len(dt_annos)
+    assert len(gt_annos) == len(dt_annos)
     total_dt_num = np.stack([len(a["name"]) for a in dt_annos], 0)
     total_gt_num = np.stack([len(a["name"]) for a in gt_annos], 0)
     num_examples = len(gt_annos)
@@ -503,7 +503,7 @@ def eval_class(gt_annos,
     Returns:
         dict of recall, precision and aos
     """
-    #assert len(gt_annos) == len(dt_annos)
+    assert len(gt_annos) == len(dt_annos)
     num_examples = len(gt_annos)
     split_parts = get_split_parts(num_examples, num_parts)
 
