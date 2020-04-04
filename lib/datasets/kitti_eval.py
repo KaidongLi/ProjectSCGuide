@@ -50,6 +50,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
     num_dt = len(dt_anno["name"])
     num_valid_gt = 0
     for i in range(num_gt):
+        # for each gt in one image
         bbox = gt_anno["bbox"][i]
         gt_name = gt_anno["name"][i].lower()
         height = bbox[3] - bbox[1]
@@ -80,6 +81,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
         if gt_anno["name"][i] == "DontCare":
             dc_bboxes.append(gt_anno["bbox"][i])
     for i in range(num_dt):
+        # for each pred in one image
         if (dt_anno["name"][i].lower() == current_cls_name):
             valid_class = 1
         else:
@@ -261,11 +263,10 @@ def compute_statistics_jit(overlaps,
             # thresholds.append(dt_scores[det_idx])
             thresholds[thresh_idx] = dt_scores[det_idx]
             thresh_idx += 1
-            if compute_aos:
-                # delta.append(gt_alphas[i] - dt_alphas[det_idx])
-                # delta[delta_idx] = gt_alphas[i] - dt_alphas[det_idx]
-                # delta_idx += 1
-
+            # if compute_aos:
+            #     delta.append(gt_alphas[i] - dt_alphas[det_idx])
+            #     delta[delta_idx] = gt_alphas[i] - dt_alphas[det_idx]
+            #     delta_idx += 1
             assigned_detection[det_idx] = True
     if compute_fp:
         for i in range(det_size):
@@ -454,6 +455,7 @@ def _prepare_data(gt_annos, dt_annos, current_class, difficulty):
     ignored_gts, ignored_dets, dontcares = [], [], []
     total_num_valid_gt = 0
     for i in range(len(gt_annos)):
+        # for each image
         rets = clean_data(gt_annos[i], dt_annos[i], current_class, difficulty)
         num_valid_gt, ignored_gt, ignored_det, dc_bboxes = rets
         ignored_gts.append(np.array(ignored_gt, dtype=np.int64))

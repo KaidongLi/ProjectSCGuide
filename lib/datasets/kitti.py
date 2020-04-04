@@ -305,7 +305,7 @@ class kitti(imdb):
                                         self.image_index
                                         )
 
-        print(get_official_eval_result(gt_annos, boxes_for_eval, 0))
+        print(get_official_eval_result(gt_annos, boxes_for_eval, [0, 1, 2, 3, 4, 5, 6]))
         if self.config['cleanup']:
             for cls in self._classes:
                 if cls == '__background__':
