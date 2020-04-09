@@ -22,7 +22,7 @@ import pickle
 
 # import logger
 from common_utils.logging import Logger
-from datasets.kitti_eval import get_official_eval_result
+from datasets.kitti_eval_numba import get_official_eval_result
 from model.utils.config import cfg
 
 try:

@@ -23,7 +23,7 @@ import pickle
 from .imdb import imdb
 from .imdb import ROOT_DIR
 from . import ds_utils
-from .kitti_eval import get_official_eval_result
+from .kitti_eval import kitti_eval
 
 # TODO: make fast_rcnn irrelevant
 # >>>> obsolete, because it depends on sth outside of this project
@@ -217,12 +217,6 @@ class kitti(imdb):
         return path
 
     def _write_results_file(self, all_boxes):
-        boxes = [{
-            'name': [],
-            'bbox': [],
-            'score': []
-        }] * len(self.image_index)
-
         for cls_ind, cls in enumerate(self.classes):
             if cls == '__background__':
                 continue
@@ -233,79 +227,59 @@ class kitti(imdb):
                     dets = all_boxes[cls_ind][im_ind]
                     if dets == []:
                         continue
-                    # the VOCdevkit expects 1-based indices
+                    # the output expects 1-based indices
                     for k in xrange(dets.shape[0]):
-                        boxes[im_ind]['name'].append(cls)
-                        boxes[im_ind]['bbox'].append(
-                            [dets[k, 0] + 1, dets[k, 1] + 1,
-                             dets[k, 2] + 1, dets[k, 3] + 1]
-                        )
-                        boxes[im_ind]['score'].append(dets[k, -1])
                         f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                 format(index, dets[k, -1],
                                        dets[k, 0] + 1, dets[k, 1] + 1,
                                        dets[k, 2] + 1, dets[k, 3] + 1))
 
-        for im_ind in range(len(self.image_index)):
-            boxes[im_ind]['name'] = np.array(boxes[im_ind]['name'])
-            boxes[im_ind]['bbox'] = np.array(boxes[im_ind]['bbox'])
-            boxes[im_ind]['score'] = np.array(boxes[im_ind]['score'])
-
-        return boxes
-
-    # def _do_python_eval(self, dets, output_dir='output'):
-    #     annopath = os.path.join(
-    #         self._data_path,
-    #         'label_2',
-    #         '{:s}.txt')
-    #     imagesetfile = os.path.join(
-    #         self._devkit_path,
-    #         'VOC' + self._year,
-    #         'ImageSets',
-    #         'Main',
-    #         self._image_set + '.txt')
-    #     cachedir = os.path.join(self._devkit_path, 'annotations_cache')
-    #     aps = []
-    #     # The PASCAL VOC metric changed in 2010
-    #     use_07_metric = True if int(self._year) < 2010 else False
-    #     print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
-    #     if not os.path.isdir(output_dir):
-    #         os.mkdir(output_dir)
-    #     for i, cls in enumerate(self._classes):
-    #         if cls == '__background__':
-    #             continue
-    #         filename = self._get_kitti_results_file_template().format(cls)
-    #         rec, prec, ap = voc_eval(
-    #             filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
-    #             use_07_metric=use_07_metric)
-    #         aps += [ap]
-    #         print('AP for {} = {:.4f}'.format(cls, ap))
-    #         with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
-    #             pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
-    #     print('Mean AP = {:.4f}'.format(np.mean(aps)))
-    #     print('~~~~~~~~')
-    #     print('Results:')
-    #     for ap in aps:
-    #         print('{:.3f}'.format(ap))
-    #     print('{:.3f}'.format(np.mean(aps)))
-    #     print('~~~~~~~~')
-    #     print('')
-    #     print('--------------------------------------------------------------')
-    #     print('Results computed with the **unofficial** Python eval code.')
-    #     print('Results should be very close to the official MATLAB eval code.')
-    #     print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
-    #     print('-- Thanks, The Management')
-    #     print('--------------------------------------------------------------')
+    def _do_python_eval(self, output_dir='output'):
+        annopath = os.path.join(
+            self._data_path,
+            'label_2',
+            '{:s}.txt')
+        imagesetfile = os.path.join(
+            self._devkit_path,
+            self._image_set + '.txt')
+        cachedir = os.path.join(self._devkit_path, 'annotations_cache')
+        aps = []
+        # The PASCAL VOC metric changed in 2010
+        use_07_metric = True #if int(self._year) < 2010 else False
+        print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+        for i, cls in enumerate(self._classes):
+            if cls == '__background__':
+                continue
+            filename = self._get_kitti_results_file_template().format(cls)
+            rec, prec, ap = kitti_eval(
+                filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
+                use_07_metric=use_07_metric)
+            aps += [ap]
+            print('AP for {}, easy:mod:hard = {:.4f}:{:.4f}:{:.4f}'
+                .format(cls, ap[0], ap[1], ap[2]))
+            # with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
+            #     pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
+        print('Mean AP = {:.4f}'.format(np.mean(aps)))
+        print('~~~~~~~~')
+        import pdb; pdb.set_trace()
+        # print('Results:')
+        # for ap in aps:
+        #     print('{:.3f}'.format(ap))
+        # print('{:.3f}'.format(np.mean(aps)))
+        # print('~~~~~~~~')
+        # print('')
+        # print('--------------------------------------------------------------')
+        # print('Results computed with the **unofficial** Python eval code.')
+        # print('Results should be very close to the official MATLAB eval code.')
+        # print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
+        # print('-- Thanks, The Management')
+        # print('--------------------------------------------------------------')
 
     def evaluate_detections(self, all_boxes, output_dir):
-        boxes_for_eval = self._write_results_file(all_boxes)
-        gt_annos = self.get_label_annos(os.path.join(
-                                            self._data_path,
-                                            'label_2' ),
-                                        self.image_index
-                                        )
-
-        print(get_official_eval_result(gt_annos, boxes_for_eval, [0, 1, 2, 3, 4, 5, 6]))
+        self._write_results_file(all_boxes)
+        self._do_python_eval(output_dir)
         if self.config['cleanup']:
             for cls in self._classes:
                 if cls == '__background__':
