@@ -126,7 +126,7 @@ def kitti_eval(detpath,
   # first load gt
   if not os.path.isdir(cachedir):
     os.mkdir(cachedir)
-  cachefile = os.path.join(cachedir, '%s_annots.pkl' % imagesetfile)
+  cachefile = os.path.join(cachedir, 'annots.pkl')
   # read list of images
   with open(imagesetfile, 'r') as f:
     lines = f.readlines()
