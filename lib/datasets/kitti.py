@@ -23,7 +23,7 @@ import pickle
 from .imdb import imdb
 from .imdb import ROOT_DIR
 from . import ds_utils
-from .voc_eval import voc_eval
+from .kitti_eval import kitti_eval
 
 # TODO: make fast_rcnn irrelevant
 # >>>> obsolete, because it depends on sth outside of this project
@@ -141,24 +141,24 @@ class kitti(imdb):
 
         return gt_roidb
 
-    def rpn_roidb(self):
-        if int(self._year) == 2007 or self._image_set != 'test':
-            gt_roidb = self.gt_roidb()
-            rpn_roidb = self._load_rpn_roidb(gt_roidb)
-            roidb = imdb.merge_roidbs(gt_roidb, rpn_roidb)
-        else:
-            roidb = self._load_rpn_roidb(None)
+    # def rpn_roidb(self):
+    #     if int(self._year) == 2007 or self._image_set != 'test':
+    #         gt_roidb = self.gt_roidb()
+    #         rpn_roidb = self._load_rpn_roidb(gt_roidb)
+    #         roidb = imdb.merge_roidbs(gt_roidb, rpn_roidb)
+    #     else:
+    #         roidb = self._load_rpn_roidb(None)
 
-        return roidb
+    #     return roidb
 
-    def _load_rpn_roidb(self, gt_roidb):
-        filename = self.config['rpn_file']
-        print('loading {}'.format(filename))
-        assert os.path.exists(filename), \
-            'rpn data not found at: {}'.format(filename)
-        with open(filename, 'rb') as f:
-            box_list = pickle.load(f)
-        return self.create_roidb_from_box_list(box_list, gt_roidb)
+    # def _load_rpn_roidb(self, gt_roidb):
+    #     filename = self.config['rpn_file']
+    #     print('loading {}'.format(filename))
+    #     assert os.path.exists(filename), \
+    #         'rpn data not found at: {}'.format(filename)
+    #     with open(filename, 'rb') as f:
+    #         box_list = pickle.load(f)
+    #     return self.create_roidb_from_box_list(box_list, gt_roidb)
 
     def _load_kitti_annotation(self, index):
         """
@@ -215,28 +215,27 @@ class kitti(imdb):
                 'flipped': False,
                 'seg_areas': seg_areas}
 
-    def _get_voc_results_file_template(self):
-        # VOCdevkit/results/VOC2007/Main/<comp_id>_det_test_aeroplane.txt
+    def _get_kitti_results_file_template(self):
+        # results/kitti/Main/<comp_id>_det_test_aeroplane.txt
         filename = 'det_' + self._image_set + '_{:s}.txt'
-        #filedir = os.path.join(self._devkit_path, 'results', 'VOC' + self._year, 'Main')
-        filedir = os.path.join('results', 'VOC' + self._year, 'Main')
+        filedir = os.path.join('results', 'kitti', 'Main')
         if not os.path.exists(filedir):
             os.makedirs(filedir)
         path = os.path.join(filedir, filename)
         return path
 
-    def _write_voc_results_file(self, all_boxes):
+    def _write_results_file(self, all_boxes):
         for cls_ind, cls in enumerate(self.classes):
             if cls == '__background__':
                 continue
-            print('Writing {} VOC results file'.format(cls))
-            filename = self._get_voc_results_file_template().format(cls)
+            print('Writing {} kitti results file'.format(cls))
+            filename = self._get_kitti_results_file_template().format(cls)
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.image_index):
                     dets = all_boxes[cls_ind][im_ind]
                     if dets == []:
                         continue
-                    # the VOCdevkit expects 1-based indices
+                    # the output expects 1-based indices
                     for k in xrange(dets.shape[0]):
                         f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                 format(index, dets[k, -1],
@@ -245,74 +244,55 @@ class kitti(imdb):
 
     def _do_python_eval(self, output_dir='output'):
         annopath = os.path.join(
-            self._devkit_path,
-            'VOC' + self._year,
-            'Annotations',
-            '{:s}.xml')
+            self._data_path,
+            'label_2',
+            '{:s}.txt')
         imagesetfile = os.path.join(
             self._devkit_path,
-            'VOC' + self._year,
-            'ImageSets',
-            'Main',
             self._image_set + '.txt')
         cachedir = os.path.join(self._devkit_path, 'annotations_cache')
         aps = []
         # The PASCAL VOC metric changed in 2010
-        use_07_metric = True if int(self._year) < 2010 else False
+        use_07_metric = True #if int(self._year) < 2010 else False
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         for i, cls in enumerate(self._classes):
             if cls == '__background__':
                 continue
-            filename = self._get_voc_results_file_template().format(cls)
-            rec, prec, ap = voc_eval(
+            filename = self._get_kitti_results_file_template().format(cls)
+            rec, prec, ap = kitti_eval(
                 filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
                 use_07_metric=use_07_metric)
             aps += [ap]
-            print('AP for {} = {:.4f}'.format(cls, ap))
-            with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
-                pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
+            print('AP for {}, easy:mod:hard = {:.4f}:{:.4f}:{:.4f}'
+                .format(cls, ap[0], ap[1], ap[2]))
+            # with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
+            #     pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
         print('Mean AP = {:.4f}'.format(np.mean(aps)))
         print('~~~~~~~~')
-        print('Results:')
-        for ap in aps:
-            print('{:.3f}'.format(ap))
-        print('{:.3f}'.format(np.mean(aps)))
-        print('~~~~~~~~')
-        print('')
-        print('--------------------------------------------------------------')
-        print('Results computed with the **unofficial** Python eval code.')
-        print('Results should be very close to the official MATLAB eval code.')
-        print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
-        print('-- Thanks, The Management')
-        print('--------------------------------------------------------------')
-
-    def _do_matlab_eval(self, output_dir='output'):
-        print('-----------------------------------------------------')
-        print('Computing results with the official MATLAB eval code.')
-        print('-----------------------------------------------------')
-        path = os.path.join(cfg.ROOT_DIR, 'lib', 'datasets',
-                            'VOCdevkit-matlab-wrapper')
-        cmd = 'cd {} && '.format(path)
-        cmd += '{:s} -nodisplay -nodesktop '.format(cfg.MATLAB)
-        cmd += '-r "dbstop if error; '
-        cmd += 'voc_eval(\'{:s}\',\'{:s}\',\'{:s}\',\'{:s}\'); quit;"' \
-            .format(self._devkit_path,
-                    self._image_set, output_dir)
-        print('Running:\n{}'.format(cmd))
-        status = subprocess.call(cmd, shell=True)
+        import pdb; pdb.set_trace()
+        # print('Results:')
+        # for ap in aps:
+        #     print('{:.3f}'.format(ap))
+        # print('{:.3f}'.format(np.mean(aps)))
+        # print('~~~~~~~~')
+        # print('')
+        # print('--------------------------------------------------------------')
+        # print('Results computed with the **unofficial** Python eval code.')
+        # print('Results should be very close to the official MATLAB eval code.')
+        # print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
+        # print('-- Thanks, The Management')
+        # print('--------------------------------------------------------------')
 
     def evaluate_detections(self, all_boxes, output_dir):
-        self._write_voc_results_file(all_boxes)
+        self._write_results_file(all_boxes)
         self._do_python_eval(output_dir)
-        if self.config['matlab_eval']:
-            self._do_matlab_eval(output_dir)
         if self.config['cleanup']:
             for cls in self._classes:
                 if cls == '__background__':
                     continue
-                filename = self._get_voc_results_file_template().format(cls)
+                filename = self._get_kitti_results_file_template().format(cls)
                 os.remove(filename)
 
     def competition_mode(self, on):
@@ -322,3 +302,45 @@ class kitti(imdb):
         else:
             self.config['use_salt'] = True
             self.config['cleanup'] = True
+
+
+    def get_label_annos(self, label_folder, image_ids=None):
+        annos = []
+        for idx in image_ids:
+            label_filename = os.path.join(label_folder, idx + '.txt')
+            annos.append(self.get_label_anno(label_filename))
+        return annos
+
+    def get_label_anno(self, label_path):
+        annotations = {}
+        annotations.update({
+            'name': [],
+            'truncated': [],
+            'occluded': [],
+            'alpha': [],
+            'bbox': [],
+            'dimensions': [],
+            'location': [],
+            'rotation_y': []
+        })
+        with open(label_path, 'r') as f:
+            lines = f.readlines()
+        # if len(lines) == 0 or len(lines[0]) < 15:
+        #     content = []
+        # else:
+        content = [line.strip().split(' ') for line in lines]
+        annotations['name'] = np.array([x[0] for x in content])
+        annotations['truncated'] = np.array([float(x[1]) for x in content])
+        annotations['occluded'] = np.array([int(x[2]) for x in content])
+        annotations['alpha'] = np.array([float(x[3]) for x in content])
+        annotations['bbox'] = np.array(
+            [[float(info) for info in x[4:8]] for x in content]).reshape(-1, 4)
+        # dimensions will convert hwl format to standard lhw(camera) format.
+        annotations['dimensions'] = np.array(
+            [[float(info) for info in x[8:11]] for x in content]).reshape(
+                -1, 3)[:, [2, 0, 1]]
+        annotations['location'] = np.array(
+            [[float(info) for info in x[11:14]] for x in content]).reshape(-1, 3)
+        annotations['rotation_y'] = np.array(
+            [float(x[14]) for x in content]).reshape(-1)
+        return annotations

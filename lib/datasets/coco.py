@@ -137,7 +137,7 @@ class coco(imdb):
     Return the database of ground-truth regions of interest.
     This function loads/saves from/to a cache file to speed up future calls.
     """
-    cache_file = osp.join(self.cache_path, self.name + '_gt_roidb.pkl')
+    cache_file = osp.join(self.cache_path, self.name + '_ori_gt_roidb.pkl')
     if osp.exists(cache_file):
       with open(cache_file, 'rb') as fid:
         roidb = pickle.load(fid)
