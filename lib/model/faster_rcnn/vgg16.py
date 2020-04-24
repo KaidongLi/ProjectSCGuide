@@ -35,7 +35,15 @@ class vgg16(_fasterRCNN):
     vgg.classifier = nn.Sequential(*list(vgg.classifier._modules.values())[:-1])
 
     # not using the last maxpool layer
-    self.RCNN_base = nn.Sequential(*list(vgg.features._modules.values())[:-1])
+    self.RCNN_base = nn.Sequential(*list(vgg.features._modules.values())[:-7])
+    self.RCNN_br_fine = nn.Sequential(
+        nn.Conv2d(512, 512, kernel_size=3, padding=1),
+        nn.ReLU(inplace=True),
+        nn.Conv2d(512, 512, kernel_size=3, padding=1),
+        nn.ReLU(inplace=True)
+    )
+    self.RCNN_br_coarse = nn.Sequential(*list(vgg.features._modules.values())[-7:-1])
+    # self.RCNN_br_fine = nn.Sequential(*list(vgg.features._modules.values())[-7:-1])
 
     # Fix the layers before conv3:
     for layer in range(10):
@@ -46,12 +54,22 @@ class vgg16(_fasterRCNN):
     self.RCNN_top = vgg.classifier
 
     # not using the last maxpool layer
-    self.RCNN_cls_score = nn.Linear(4096, self.n_sp_classes + self.n_classes)
+    self.RCNN_cls_score = nn.Linear(4096, self.n_sp_classes)
+
+    self.RCNN_cls_fine = nn.Sequential(
+        nn.Linear(50176, 4096),
+        nn.ReLU(inplace=True),
+        nn.Dropout(p=0.5),
+        nn.Linear(4096, 4096),
+        nn.ReLU(inplace=True),
+        nn.Dropout(p=0.5),
+        nn.Linear(4096, self.n_classes)
+    )
 
     if self.class_agnostic:
       self.RCNN_bbox_pred = nn.Linear(4096, 4)
     else:
-      self.RCNN_bbox_pred = nn.Linear(4096, 4 * self.n_classes)      
+      self.RCNN_bbox_pred = nn.Linear(4096, 4 * self.n_sp_classes)      
 
   def _head_to_tail(self, pool5):
     

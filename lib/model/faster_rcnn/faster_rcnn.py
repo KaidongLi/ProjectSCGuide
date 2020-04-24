@@ -8,6 +8,8 @@ from torch.autograd import Variable
 import numpy as np
 from model.utils.config import cfg
 from model.rpn.rpn import _RPN
+from model.rpn.bbox_transform import bbox_transform_inv
+from model.rpn.bbox_transform import clip_boxes
 from model.roi_pooling.modules.roi_pool import _RoIPooling
 from model.roi_crop.modules.roi_crop import _RoICrop
 from model.roi_align.modules.roi_align import RoIAlignAvg
@@ -49,10 +51,13 @@ class _fasterRCNN(nn.Module):
         num_boxes = num_boxes.data
 
         # feed image data to base model to obtain base feature map
-        base_feat = self.RCNN_base(im_data)
+        base_feat_fn = self.RCNN_base(im_data)
+        base_feat_det = self.RCNN_br_coarse(base_feat_fn)
+        base_feat_fn = self.RCNN_br_fine(base_feat_fn)
+
 
         # feed base feature map to RPN to obtain rois
-        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat_det, im_info, gt_boxes, num_boxes)
 
         # if it is training phase, then use ground truth bboxes for refining
         if self.training:
@@ -71,41 +76,34 @@ class _fasterRCNN(nn.Module):
             rpn_loss_cls = 0
             rpn_loss_bbox = 0
 
-        rois = Variable(rois)
-        # do roi pooling based on predicted rois
-
-        if cfg.POOLING_MODE == 'crop':
-            # pdb.set_trace()
-            # pooled_feat_anchor = _crop_pool_layer(base_feat, rois.view(-1, 5))
-            grid_xy = _affine_grid_gen(rois.view(-1, 5), base_feat.size()[2:], self.grid_size)
-            grid_yx = torch.stack([grid_xy.data[:,:,:,1], grid_xy.data[:,:,:,0]], 3).contiguous()
-            pooled_feat = self.RCNN_roi_crop(base_feat, Variable(grid_yx).detach())
-            if cfg.CROP_RESIZE_WITH_MAX_POOL:
-                pooled_feat = F.max_pool2d(pooled_feat, 2, 2)
-        elif cfg.POOLING_MODE == 'align':
-            pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
-        elif cfg.POOLING_MODE == 'pool':
-            pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1,5))
-
-
-        #import pdb; pdb.set_trace()
+        pooled_feat = self.do_ROIs(base_feat_det, rois)
 
         # feed pooled features to top model
         pooled_feat = self._head_to_tail(pooled_feat)
 
-        # compute bbox offset
-        bbox_pred = self.RCNN_bbox_pred(pooled_feat)
-        if self.training and not self.class_agnostic:
-            # select the corresponding columns according to roi labels
-            bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
-            bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
-            bbox_pred = bbox_pred_select.squeeze(1)
-
         # compute object classification probability
-        cls_score = self.RCNN_cls_score(pooled_feat)
+        sp_cls_score = self.RCNN_cls_score(pooled_feat)
+        _, sp_cls_idx = sp_cls_score.max(1)
 
-        sp_cls_score = cls_score[:, :self.n_sp_classes]
-        cls_score = cls_score[:, self.n_sp_classes:]
+        # compute bbox offset
+        bbox_delta_pred = self.RCNN_bbox_pred(pooled_feat)
+
+        conv_matrix = self.get_conv_matrix()
+        rois_super_label = 0
+        if self.training:
+            rois_super_label = conv_matrix[rois_label]
+
+        base_feat_fn = torch.cat((base_feat_fn, base_feat_det), 1)
+
+        bbox_delta_pred, pred_boxes = self.get_final_boxes(bbox_delta_pred, rois, sp_cls_idx, rois_super_label, im_info)
+
+        boxes2pool = sp_cls_score.new(batch_size, pred_boxes.size()[1], 5).zero_()
+        for i in range(batch_size):
+            boxes2pool[i,:,0] = i
+        boxes2pool[:,:,1:] = pred_boxes[:, :, :]  
+
+        pooled_feat = self.do_ROIs(base_feat_fn, boxes2pool)      
+        cls_score = self.RCNN_cls_fine(pooled_feat.view(pooled_feat.size(0), -1))
 
         cls_prob = 0
         cls_prob_comb = 0
@@ -113,23 +111,18 @@ class _fasterRCNN(nn.Module):
         RCNN_loss_cls = 0
         RCNN_loss_bbox = 0
 
-        conv_matrix = self.get_conv_matrix()
-
         if self.training:
-            rois_super_label = conv_matrix[rois_label]
 
             RCNN_loss_sp_cls = F.cross_entropy(sp_cls_score, rois_super_label)
             # classification loss
             RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
 
             # bounding box regression L1 loss
-            RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
+            RCNN_loss_bbox = _smooth_l1_loss(bbox_delta_pred, rois_target, rois_inside_ws, rois_outside_ws)
 
             #pdb.set_trace()
         else:
             cls_prob = F.softmax(cls_score, 1)
-
-            _, sp_cls_idx = sp_cls_score.max(1)
 
             sp_cls_idx = sp_cls_idx.view(-1, 1).expand( cls_score.size() )
             conv_matrix = conv_matrix.view(1, -1).expand( cls_score.size() )
@@ -140,9 +133,9 @@ class _fasterRCNN(nn.Module):
 
             cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
             cls_prob_comb = cls_prob_comb.view(batch_size, rois.size(1), -1)
-            bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+            #bbox_delta_pred = bbox_delta_pred.view(batch_size, rois.size(1), -1)
 
-        return rois, (cls_prob_comb, cls_prob), bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_sp_cls, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+        return rois, (cls_prob_comb, cls_prob), pred_boxes, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_sp_cls, RCNN_loss_cls, RCNN_loss_bbox, rois_label
 
     #def _find
     def _init_weights(self):
@@ -174,3 +167,53 @@ class _fasterRCNN(nn.Module):
             conv_matrix[self.sp_classes_rng[sp_cls]:self.sp_classes_rng[sp_cls+1]] = sp_cls
         return conv_matrix
 
+
+    def do_ROIs(self, base_feat, roi):
+        roi = Variable(roi)
+        # do roi pooling based on predicted rois
+
+        if cfg.POOLING_MODE == 'crop':
+            # pdb.set_trace()
+            # pooled_feat_anchor = _crop_pool_layer(base_feat, roi.view(-1, 5))
+            grid_xy = _affine_grid_gen(roi.view(-1, 5), base_feat.size()[2:], self.grid_size)
+            grid_yx = torch.stack([grid_xy.data[:,:,:,1], grid_xy.data[:,:,:,0]], 3).contiguous()
+            pooled_feat = self.RCNN_roi_crop(base_feat, Variable(grid_yx).detach())
+            if cfg.CROP_RESIZE_WITH_MAX_POOL:
+                pooled_feat = F.max_pool2d(pooled_feat, 2, 2)
+        elif cfg.POOLING_MODE == 'align':
+            pooled_feat = self.RCNN_roi_align(base_feat, roi.view(-1, 5))
+        elif cfg.POOLING_MODE == 'pool':
+            pooled_feat = self.RCNN_roi_pool(base_feat, roi.view(-1,5))
+        return pooled_feat
+
+    def get_final_boxes(self, deltas, roi, cls_pred, cls_ann, info):
+
+        if not self.class_agnostic:
+            # select the corresponding columns according to roi labels/cls predictions
+            bbox_pred_view = deltas.view(deltas.size(0), int(deltas.size(1) / 4), 4)
+            if self.training: 
+                bbox_pred_select = torch.gather(bbox_pred_view, 1, cls_ann.view(cls_ann.size(0), 1, 1).expand(cls_ann.size(0), 1, 4))
+            else:
+                bbox_pred_select = torch.gather(bbox_pred_view, 1, cls_pred.view(cls_pred.size(0), 1, 1).expand(cls_pred.size(0), 1, 4))
+            deltas = bbox_pred_select.squeeze(1)
+             
+        boxes = roi.data[:, :, 1:5]
+
+        # get the bbox
+        if cfg.TEST.BBOX_REG:
+            # Apply bounding-box regression deltas
+            box_deltas = deltas.data
+            if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+                # Optionally normalize targets by a precomputed mean and stdev
+                box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                           + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+                box_deltas = box_deltas.view(roi.size(0), -1, 4)
+
+            pred_boxes = bbox_transform_inv(boxes, box_deltas, roi.size(0))
+            pred_boxes = clip_boxes(pred_boxes, info, roi.size(0))
+        else:
+            # Simply repeat the boxes, once for each class
+            _ = torch.from_numpy(np.tile(boxes, (1, 1)))
+            pred_boxes = _.cuda()
+
+        return deltas, pred_boxes

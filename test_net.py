@@ -107,27 +107,7 @@ def parse_args():
 
 def get_det(scores, all_boxes):
   global det_tic, boxes, bbox_pred, args, im_info, data, imdb, thresh, empty_array, max_per_image, i
-  if cfg.TEST.BBOX_REG:
-      # Apply bounding-box regression deltas
-      box_deltas = bbox_pred.data
-      if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
-      # Optionally normalize targets by a precomputed mean and stdev
-        if args.class_agnostic:
-            box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                       + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-            box_deltas = box_deltas.view(1, -1, 4)
-        else:
-            box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                       + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-            box_deltas = box_deltas.view(1, -1, 4 * len(imdb.classes))
-
-      pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
-      pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
-  else:
-      # Simply repeat the boxes, once for each class
-      _ = torch.from_numpy(np.tile(boxes, (1, scores.shape[1])))
-      pred_boxes = _.cuda() if args.cuda > 0 else _
-
+  pred_boxes = bbox_pred.data
   pred_boxes /= data[1][0][2].item()
 
   scores = scores.squeeze()
@@ -144,10 +124,7 @@ def get_det(scores, all_boxes):
       if inds.numel() > 0:
         cls_scores = scores[:,j][inds]
         _, order = torch.sort(cls_scores, 0, True)
-        if args.class_agnostic:
-          cls_boxes = pred_boxes[inds, :]
-        else:
-          cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
+        cls_boxes = pred_boxes[inds, :]
         
         cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
         # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
