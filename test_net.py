@@ -105,8 +105,8 @@ def parse_args():
   sys.stdout = Logger(os.path.join(args.save_folder, 'log0.txt'))
   return args
 
-def get_det(scores, all_boxes):
-  global det_tic, boxes, bbox_pred, args, im_info, data, imdb, thresh, empty_array, max_per_image, i
+def get_det(scores, all_boxes, bbox_pred):
+  global det_tic, boxes, args, im_info, data, imdb, thresh, empty_array, max_per_image, i#, bbox_pred
   pred_boxes = bbox_pred.data
   pred_boxes /= data[1][0][2].item()
 
@@ -135,7 +135,9 @@ def get_det(scores, all_boxes):
           im2show = vis_detections(im2show, imdb.classes[j], cls_dets.cpu().numpy(), 0.3)
         all_boxes[j][i] = cls_dets.cpu().numpy()
 
-        #pdb.set_trace()
+        # kaidong test 2
+        # if j == 33:
+        #   pdb.set_trace()
 
       else:
         all_boxes[j][i] = empty_array
@@ -307,7 +309,7 @@ if __name__ == '__main__':
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
 
   # kaidong test
-  #for i in range(10):
+  # for i in range(50):
   for i in range(num_images):
 
       data = next(data_iter)
@@ -324,13 +326,28 @@ if __name__ == '__main__':
 
       boxes = rois.data[:, :, 1:5]
 
+      # kaidong test 1
+      # print('add comb==========================')
+
       # combined performance into pred_boxes_combined
       cls_conf = cls_prob[0].data
-      get_det(cls_conf, all_boxes_comb)
+
+      # kaidong test 1
+      # pdb.set_trace()
+      get_det(cls_conf, all_boxes_comb, bbox_pred.clone() )
+
+      # kaidong test 1
+      # print('add single==========================')
 
       # original performance into pred_boxes
       cls_conf = cls_prob[1].data
-      get_det(cls_conf, all_boxes_single)
+
+      # kaidong test 1
+      # pdb.set_trace()
+      get_det(cls_conf, all_boxes_single, bbox_pred)
+
+      # kaidong test 1
+      #pdb.set_trace()
 
 
   with open(det_file, 'wb') as f:

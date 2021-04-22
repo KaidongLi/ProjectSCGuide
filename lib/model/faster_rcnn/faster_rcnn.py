@@ -100,9 +100,9 @@ class _fasterRCNN(nn.Module):
         boxes2pool = sp_cls_score.new(batch_size, pred_boxes.size()[1], 5).zero_()
         for i in range(batch_size):
             boxes2pool[i,:,0] = i
-        boxes2pool[:,:,1:] = pred_boxes[:, :, :]  
+        boxes2pool[:,:,1:] = pred_boxes[:, :, :]
 
-        pooled_feat = self.do_ROIs(base_feat_fn, boxes2pool)      
+        pooled_feat = self.do_ROIs(base_feat_fn, boxes2pool)
         cls_score = self.RCNN_cls_fine(pooled_feat.view(pooled_feat.size(0), -1))
 
         cls_prob = 0
@@ -191,12 +191,12 @@ class _fasterRCNN(nn.Module):
         if not self.class_agnostic:
             # select the corresponding columns according to roi labels/cls predictions
             bbox_pred_view = deltas.view(deltas.size(0), int(deltas.size(1) / 4), 4)
-            if self.training: 
+            if self.training:
                 bbox_pred_select = torch.gather(bbox_pred_view, 1, cls_ann.view(cls_ann.size(0), 1, 1).expand(cls_ann.size(0), 1, 4))
             else:
                 bbox_pred_select = torch.gather(bbox_pred_view, 1, cls_pred.view(cls_pred.size(0), 1, 1).expand(cls_pred.size(0), 1, 4))
             deltas = bbox_pred_select.squeeze(1)
-             
+
         boxes = roi.data[:, :, 1:5]
 
         # get the bbox
